@@ -17,8 +17,8 @@ WIDTH, HEIGHT = 1080, 1080
 # Rutas relativas a este archivo, para que funcione sin importar el
 # sistema de archivos del servidor (Railway no siempre trae fuentes instaladas)
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FONT_BOLD = os.path.join(_BASE_DIR, "fonts", "DejaVuSans-Bold.ttf")
-FONT_REGULAR = os.path.join(_BASE_DIR, "fonts", "DejaVuSans.ttf")
+FONT_BOLD = os.path.join(_BASE_DIR, "DejaVuSans-Bold.ttf")
+FONT_REGULAR = os.path.join(_BASE_DIR, "DejaVuSans.ttf")
 
 PAGE_NAME = "Ponche Finanzas"
 
