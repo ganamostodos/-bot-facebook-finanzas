@@ -17,10 +17,12 @@ import time
 import json
 import logging
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import requests
 
 from tips import TIPS
+from image_generator import generar_imagen_tip
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,6 +35,13 @@ FB_ACCESS_TOKEN = os.environ.get("FB_ACCESS_TOKEN")
 POST_HOUR = int(os.environ.get("POST_HOUR", "9"))
 GRAPH_API_VERSION = "v21.0"
 STATE_FILE = "state.json"
+TIMEZONE = ZoneInfo("America/Bogota")
+
+
+def ahora_colombia():
+    """Devuelve la hora actual en la zona horaria de Colombia, sin importar
+    en qué zona horaria esté el servidor donde corre el bot."""
+    return datetime.now(TIMEZONE)
 
 
 def cargar_estado():
@@ -49,22 +58,32 @@ def guardar_estado(estado):
 
 
 def publicar_en_facebook(mensaje: str):
-    """Publica un mensaje de texto en la página de Facebook usando la Graph API."""
+    """Genera una imagen con el tip y la publica en la página de Facebook
+    (endpoint /photos, para que aparezca como imagen con descripción,
+    en vez de solo texto)."""
     if not FB_PAGE_ID or not FB_ACCESS_TOKEN:
         log.error("Faltan las variables de entorno FB_PAGE_ID o FB_ACCESS_TOKEN.")
         return False
 
-    url = f"https://graph.facebook.com/{GRAPH_API_VERSION}/{FB_PAGE_ID}/feed"
-    payload = {
-        "message": mensaje,
-        "access_token": FB_ACCESS_TOKEN,
-    }
+    try:
+        ruta_imagen = generar_imagen_tip(mensaje, output_path="tip_card.png")
+    except Exception as e:
+        log.error(f"Error al generar la imagen del tip: {e}")
+        return False
+
+    url = f"https://graph.facebook.com/{GRAPH_API_VERSION}/{FB_PAGE_ID}/photos"
 
     try:
-        response = requests.post(url, data=payload, timeout=30)
+        with open(ruta_imagen, "rb") as img_file:
+            files = {"source": img_file}
+            payload = {
+                "caption": mensaje,
+                "access_token": FB_ACCESS_TOKEN,
+            }
+            response = requests.post(url, data=payload, files=files, timeout=60)
         response.raise_for_status()
         data = response.json()
-        log.info(f"Publicado correctamente. ID del post: {data.get('id')}")
+        log.info(f"Publicado correctamente. ID del post: {data.get('post_id') or data.get('id')}")
         return True
     except requests.exceptions.RequestException as e:
         log.error(f"Error al publicar en Facebook: {e}")
@@ -80,16 +99,16 @@ def obtener_siguiente_tip(estado):
 
 
 def ya_publico_hoy(estado):
-    hoy = datetime.now().strftime("%Y-%m-%d")
+    hoy = ahora_colombia().strftime("%Y-%m-%d")
     return estado.get("ultima_fecha") == hoy
 
 
 def ciclo_principal():
     log.info("Bot de Facebook - Tips de Finanzas Personales iniciado.")
-    log.info(f"Hora programada de publicación: {POST_HOUR}:00")
+    log.info(f"Hora programada de publicación: {POST_HOUR}:00 (hora Colombia)")
 
     while True:
-        ahora = datetime.now()
+        ahora = ahora_colombia()
         estado = cargar_estado()
 
         if ahora.hour == POST_HOUR and not ya_publico_hoy(estado):
